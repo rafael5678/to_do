@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/task_model.dart';
 import '../services/supabase_service.dart';
@@ -106,6 +107,49 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _currentIndex = 0;
 
+  // Timer variables
+  Timer? _timer;
+  int _seconds = 0;
+  bool _timerRunning = false;
+
+  void _startTimer() {
+    if (_timerRunning) return;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _seconds++;
+      });
+    });
+    setState(() {
+      _timerRunning = true;
+    });
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    setState(() {
+      _timerRunning = false;
+    });
+  }
+
+  void _resetTimer() {
+    _stopTimer();
+    setState(() {
+      _seconds = 0;
+    });
+  }
+
+  String _formatTime(int totalSeconds) {
+    int minutes = totalSeconds ~/ 60;
+    int seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -129,16 +173,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return _buildHomeContent();
       case 1:
-        return const Center(
-          child: Text("Tareas Guardadas", style: TextStyle(fontSize: 18)),
-        );
+        return _buildSavedTasksContent();
       case 2:
-        return const Center(
-          child: Text(
-            "Cronómetro / Temporizador",
-            style: TextStyle(fontSize: 18),
-          ),
-        );
+        return _buildTimerContent();
       case 3:
         return const Center(
           child: Text("Perfil de Usuario", style: TextStyle(fontSize: 18)),
@@ -146,6 +183,122 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         return _buildHomeContent();
     }
+  }
+
+  Widget _buildSavedTasksContent() {
+    final savedTasks = _tasks.where((t) => t.isSaved).toList();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Saved Tasks",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A2E),
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (savedTasks.isEmpty)
+            const Center(child: Text("No tienes tareas guardadas aún"))
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: savedTasks.length,
+              itemBuilder: (context, index) {
+                final task = savedTasks[index];
+                return TaskCard(
+                  task: task,
+                  onToggle: () => _toggleTaskStatus(task),
+                  onLongPress: task.id != null
+                      ? () => _deleteTask(task.id!)
+                      : null,
+                  onTap: () => _editTask(task),
+                  onSave: () => _toggleSaveTask(task),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimerContent() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text(
+            "Timer",
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A2E),
+            ),
+          ),
+          const SizedBox(height: 40),
+          Container(
+            padding: const EdgeInsets.all(40),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF2DC78A), width: 4),
+            ),
+            child: Text(
+              _formatTime(_seconds),
+              style: const TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A1A2E),
+              ),
+            ),
+          ),
+          const SizedBox(height: 40),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: _timerRunning ? _stopTimer : _startTimer,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2DC78A),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  _timerRunning ? "Stop" : "Start",
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+              const SizedBox(width: 20),
+              OutlinedButton(
+                onPressed: _resetTimer,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  side: const BorderSide(color: Color(0xFF2DC78A)),
+                ),
+                child: const Text(
+                  "Reset",
+                  style: TextStyle(color: Color(0xFF2DC78A)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildHomeContent() {
@@ -389,6 +542,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _toggleSaveTask(Task task) async {
+    if (task.id == null) return;
+    final newSaveStatus = !task.isSaved;
+    setState(() {
+      final index = _tasks.indexOf(task);
+      if (index != -1) {
+        _tasks[index] = Task(
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          date: task.date,
+          category: task.category,
+          time: task.time,
+          isCompleted: task.isCompleted,
+          fileUrl: task.fileUrl,
+          isSaved: newSaveStatus,
+        );
+      }
+    });
+    await _supabaseService.toggleSaveTask(task.id!, newSaveStatus);
+  }
+
   Widget _buildTaskList() {
     return ListView.builder(
       shrinkWrap: true,
@@ -401,6 +576,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onToggle: () => _toggleTaskStatus(task),
           onLongPress: task.id != null ? () => _deleteTask(task.id!) : null,
           onTap: () => _editTask(task),
+          onSave: () => _toggleSaveTask(task),
         );
       },
     );

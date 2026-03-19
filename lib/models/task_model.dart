@@ -7,6 +7,9 @@ class Task {
   final bool isCompleted;
   final String time;
 
+  final String? fileUrl;
+  final bool isSaved;
+
   Task({
     this.id,
     required this.title,
@@ -15,6 +18,8 @@ class Task {
     required this.category,
     this.isCompleted = false,
     required this.time,
+    this.fileUrl,
+    this.isSaved = false,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -26,6 +31,8 @@ class Task {
       category: json['category'],
       isCompleted: json['is_completed'] ?? false,
       time: json['time'],
+      fileUrl: json['file_url'],
+      isSaved: json['is_saved'] ?? false,
     );
   }
 
@@ -38,6 +45,8 @@ class Task {
       'category': category,
       'is_completed': isCompleted,
       'time': time,
+      'file_url': fileUrl,
+      'is_saved': isSaved,
     };
   }
 }

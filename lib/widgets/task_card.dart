@@ -7,8 +7,9 @@ class TaskCard extends StatelessWidget {
 
   final VoidCallback? onLongPress;
   final VoidCallback? onTap;
+  final VoidCallback? onSave;
 
-  const TaskCard({super.key, required this.task, this.onToggle, this.onLongPress, this.onTap});
+  const TaskCard({super.key, required this.task, this.onToggle, this.onLongPress, this.onTap, this.onSave});
 
   @override
   Widget build(BuildContext context) {
@@ -53,15 +54,39 @@ class TaskCard extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                task.title,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: task.isCompleted ? FontWeight.normal : FontWeight.w600,
-                  color: const Color(0xFF1A1A2E),
-                  decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: task.isCompleted ? FontWeight.normal : FontWeight.w600,
+                      color: const Color(0xFF1A1A2E),
+                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                    ),
+                  ),
+                  if (task.fileUrl != null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.attach_file, size: 12, color: Color(0xFF2DC78A)),
+                          SizedBox(width: 4),
+                          Text("Archivo adjunto", style: TextStyle(fontSize: 10, color: Color(0xFF9E9E9E))),
+                        ],
+                      ),
+                    ),
+                ],
               ),
+            ),
+            IconButton(
+              icon: Icon(
+                task.isSaved ? Icons.bookmark : Icons.bookmark_border,
+                color: task.isSaved ? const Color(0xFF2DC78A) : const Color(0xFF9E9E9E),
+                size: 20,
+              ),
+              onPressed: onSave,
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

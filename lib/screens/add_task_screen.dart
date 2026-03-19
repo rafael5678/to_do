@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/task_model.dart';
 import '../services/supabase_service.dart';
 import '../widgets/category_chip.dart';
@@ -27,7 +28,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     "Sport",
     "More",
   ];
-  final List<String> _attachedFiles = [];
+  final List<PlatformFile> _selectedFiles = [];
 
   @override
   void initState() {
@@ -194,18 +195,16 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             // Additional Files
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () {
-                // Simulate file picking
-                setState(() {
-                  _attachedFiles.add(
-                    "Document_${_attachedFiles.length + 1}.pdf",
-                  );
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Archivo adjuntado (simulación)"),
-                  ),
+              onTap: () async {
+                final result = await FilePicker.platform.pickFiles(
+                  allowMultiple: true,
+                  withData: true,
                 );
+                if (result != null) {
+                  setState(() {
+                    _selectedFiles.addAll(result.files);
+                  });
+                }
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -227,9 +226,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            _attachedFiles.isEmpty
+                            _selectedFiles.isEmpty
                                 ? "Additional Files"
-                                : "Attached: ${_attachedFiles.length} file(s)",
+                                : "Attached: ${_selectedFiles.length} file(s)",
                             style: const TextStyle(
                               fontSize: 14,
                               color: Color(0xFF1A1A2E),
@@ -242,20 +241,20 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                         ),
                       ],
                     ),
-                    if (_attachedFiles.isNotEmpty)
+                    if (_selectedFiles.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Wrap(
                           spacing: 8,
-                          children: _attachedFiles
+                          children: _selectedFiles
                               .map(
                                 (f) => Chip(
                                   label: Text(
-                                    f,
+                                    f.name,
                                     style: const TextStyle(fontSize: 10),
                                   ),
                                   onDeleted: () =>
-                                      setState(() => _attachedFiles.remove(f)),
+                                      setState(() => _selectedFiles.remove(f)),
                                   deleteIcon: const Icon(Icons.close, size: 12),
                                   backgroundColor: Colors.white,
                                 ),
@@ -332,17 +331,28 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     final now = DateTime.now();
     final timeStr = DateFormat('h a').format(now);
 
-    final newTask = Task(
-      id: widget.taskToEdit?.id,
-      title: _titleController.text,
-      description: _descriptionController.text,
-      date: _selectedDate,
-      category: _selectedCategory,
-      time: timeStr,
-      isCompleted: widget.taskToEdit?.isCompleted ?? false,
-    );
-
+    Task? newTask;
     try {
+      String? fileUrl;
+      if (_selectedFiles.isNotEmpty) {
+        final file = _selectedFiles.first;
+        fileUrl = await _supabaseService.uploadFile(
+          "${DateTime.now().millisecondsSinceEpoch}_${file.name}",
+          file.bytes,
+        );
+      }
+
+      newTask = Task(
+        id: widget.taskToEdit?.id,
+        title: _titleController.text,
+        description: _descriptionController.text,
+        date: _selectedDate,
+        category: _selectedCategory,
+        time: timeStr,
+        isCompleted: widget.taskToEdit?.isCompleted ?? false,
+        fileUrl: fileUrl ?? widget.taskToEdit?.fileUrl,
+      );
+
       if (widget.taskToEdit == null) {
         await _supabaseService.addTask(newTask);
       } else {
@@ -350,18 +360,12 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       }
 
       if (mounted) {
-        Navigator.pop(
-          context,
-          newTask,
-        ); // Return the task object to add it locally
+        Navigator.pop(context, newTask); // Return the task object to add it locally
       }
     } catch (e) {
       debugPrint('Supabase failed, but task will be added locally: $e');
-      if (mounted) {
-        Navigator.pop(
-          context,
-          newTask,
-        ); // Still return the task even if Supabase fails
+      if (mounted && newTask != null) {
+        Navigator.pop(context, newTask); // Still return the task even if Supabase fails
       }
     }
   }
