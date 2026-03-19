@@ -118,8 +118,12 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 suffixIcon: const Padding(
                   padding: EdgeInsets.only(top: 14, right: 12),
                   child: Text(
-                    "(Not Required)",
-                    style: TextStyle(color: Color(0xFF9E9E9E), fontSize: 11),
+                    "(Required)",
+                    style: TextStyle(
+                      color: Color(0xFF2DC78A),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 border: OutlineInputBorder(
@@ -319,11 +323,16 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   }
 
   Future<void> _submitTask() async {
-    if (_titleController.text.isEmpty) {
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("El título es obligatorio")));
+      return;
+    }
+
+    if (_descriptionController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Por favor ingresa un título para la tarea"),
-        ),
+        const SnackBar(content: Text("La descripción es obligatoria")),
       );
       return;
     }
@@ -332,6 +341,16 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     final timeStr = DateFormat('h a').format(now);
 
     Task? newTask;
+
+    // Mostrar indicador de carga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF2DC78A)),
+      ),
+    );
+
     try {
       String? fileUrl;
       if (_selectedFiles.isNotEmpty) {
@@ -344,8 +363,8 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
 
       newTask = Task(
         id: widget.taskToEdit?.id,
-        title: _titleController.text,
-        description: _descriptionController.text,
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
         date: _selectedDate,
         category: _selectedCategory,
         time: timeStr,
@@ -360,12 +379,16 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       }
 
       if (mounted) {
-        Navigator.pop(context, newTask); // Return the task object to add it locally
+        Navigator.pop(context); // Cerrar indicador de carga
+        Navigator.pop(context, newTask); // Volver con la tarea
       }
     } catch (e) {
-      debugPrint('Supabase failed, but task will be added locally: $e');
-      if (mounted && newTask != null) {
-        Navigator.pop(context, newTask); // Still return the task even if Supabase fails
+      debugPrint('Error en el proceso de guardado: $e');
+      if (mounted) {
+        Navigator.pop(context); // Cerrar indicador de carga
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error al guardar en la nube: $e")),
+        );
       }
     }
   }
